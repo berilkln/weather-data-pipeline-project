@@ -1,3 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual env
+venv/
+.env
+
+# Data
+data/raw/
+data/processed/
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Logs
+logs/
+!logs/.gitkeep
+
+# Airflow
+airflow/
+airflow.db
+airflow.cfg
+dags/__pycache__/
+
+# OS junk
+.DS_Store
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
