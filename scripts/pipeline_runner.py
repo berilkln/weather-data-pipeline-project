@@ -15,7 +15,7 @@ try:
         analyze_weather()
 
         print("Pipeline run completed.\n Waiting for the next run...\n")
-        time.sleep(10)
+        time.sleep(3600)
 except KeyboardInterrupt:
         print("Pipeline stopped manually.")
 
