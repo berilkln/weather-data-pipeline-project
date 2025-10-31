@@ -8,83 +8,59 @@ def analyze_weather():
     processed_dir = Path(__file__).resolve().parents[1] / "data" / "processed"
     processed_dir.mkdir(parents=True, exist_ok=True)
 
-    files = sorted(raw_dir.glob("*.json"))
+    files = sorted(raw_dir.glob("*_daily.json"))
     if not files:
-        print("No data files found yet.")
+        print("No daily forecast data files found.")
         return None
 
-    print(f"{len(files)} files found, analysis begins...")
+    print(f"📂 {len(files)} daily forecast files found. Analysis begins...\n")
 
-    all_metrics = []
+    all_data = []
 
     for file_path in files[-4:]:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        city_meta = data.get("metadata", {})
-        city_name = city_meta.get("city", "Unknown")
-        region = city_meta.get("region", "")
-        lat = city_meta.get("latitude", None)
-        lon = city_meta.get("longitude", None)
+        meta = data.get("metadata", {})
+        city = meta.get("city", "Unknown")
+        region = meta.get("region", "")
+        lat = meta.get("latitude", None)
+        lon = meta.get("longitude", None)
+        forecast_generated_on = meta.get("forecast_generated_on", "")
 
-        print(f"🔍 Analyzing {city_name}...")
+        print(f"Analyzing: {city}")
 
+        daily = data.get("daily", {})
 
         df = pd.DataFrame({
-            "time": data["hourly"]["time"],
-            "temperature": data["hourly"].get("temperature_2m", []),
-            "apparent_temp": data["hourly"].get("apparent_temperature", []),
-            "humidity": data["hourly"].get("relative_humidity_2m", []),
-            "precipitation": data["hourly"].get("precipitation", []),
-            "snowfall": data["hourly"].get("snowfall", []),
-            "cloud_cover": data["hourly"].get("cloud_cover", []),
-            "wind_speed": data["hourly"].get("wind_speed_10m", []),
-            "sunshine_duration": data["hourly"].get("sunshine_duration", []),
+            "date": pd.to_datetime(daily.get("time", [])),
+            "temp_max": daily.get("temperature_2m_max", []),
+            "temp_min": daily.get("temperature_2m_min", []),
+            "apparent_max": daily.get("apparent_temperature_max", []),
+            "apparent_min": daily.get("apparent_temperature_min", []),
+            "precipitation_sum": daily.get("precipitation_sum", []),
+            "sunshine_duration": daily.get("sunshine_duration", []),
+            "wind_speed_max": daily.get("wind_speed_10m_max", []),
         })
 
-        df["time"] = pd.to_datetime(df["time"])
-        df["date"] = df["time"].dt.date
+        df["day"] = df["date"].dt.day
+        df["month"] = df["date"].dt.month
+        df["year"] = df["date"].dt.year
+        df["week"] = df["date"].dt.isocalendar().week
+        df["weekday_name"] = df["date"].dt.day_name()
 
-        daily = (
-            df.groupby("date").agg({
-                "temperature": "mean",
-                "apparent_temp": "mean",
-                "humidity": "mean",
-                "precipitation": "sum",
-                "snowfall": "sum",
-                "cloud_cover": "mean",
-                "wind_speed": "mean",
-                "sunshine_duration": "sum"
-            }).reset_index()
-        )
+        df["city"] = city
+        df["region"] = region
+        df["latitude"] = lat
+        df["longitude"] = lon
+        df["forecast_generated_on"] = forecast_generated_on
 
+        all_data.append(df)
 
-        daily.rename(columns={
-            "temperature": "avg_temp",
-            "humidity": "avg_humidity",
-            "wind_speed": "avg_wind_speed",
-            "precipitation": "total_precipitation",
-            "snowfall": "total_snowfall"
-        }, inplace=True)
+    final_df = pd.concat(all_data, ignore_index=True)
 
-    
-        daily["day"] = pd.to_datetime(daily["date"]).dt.day
-        daily["month"] = pd.to_datetime(daily["date"]).dt.month
-        daily["year"] = pd.to_datetime(daily["date"]).dt.year
-        daily["week"] = pd.to_datetime(daily["date"]).dt.isocalendar().week
-        daily["weekday_name"] = pd.to_datetime(daily["date"]).dt.day_name()
-
-
-        daily["city"] = city_name
-        daily["region"] = region
-        daily["latitude"] = lat
-        daily["longitude"] = lon
-
-        all_metrics.append(daily)
-
-    final_df = pd.concat(all_metrics, ignore_index=True)
-
-    print(f"Analysis completed. {len(final_df)} line produced.")
+    print(f"\n Analysis completed. {len(final_df)} rows created.\n")
+    print(final_df.head())
     return final_df
 
 

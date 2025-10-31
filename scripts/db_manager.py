@@ -1,30 +1,26 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH =  Path(__file__).resolve().parents[1] / "data" / "db" / "weather_data.db"
-
+DB_PATH = Path(__file__).resolve().parents[1] / "data" / "db" / "weather_data.db"
 
 def get_connection():
     conn = sqlite3.connect(DB_PATH)
     return conn
 
 
-
-def create_table():
+def create_tables():
     conn = get_connection()
     cursor = conn.cursor()
-
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS dim_location (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        city TEXT NOT NULL,
+        city TEXT NOT NULL UNIQUE,
         region TEXT,
         latitude REAL,
         longitude REAL
     );
     """)
-
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS dim_date (
@@ -38,20 +34,20 @@ def create_table():
     );
     """)
 
-
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS fact_weather (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         location_id INTEGER,
         date_id INTEGER,
-        avg_temp REAL,
-        apparent_temp REAL,
-        avg_humidity REAL,
-        total_precipitation REAL,
-        total_snowfall REAL,
-        avg_cloud_cover REAL,
-        avg_wind_speed REAL,
+        temp_max REAL,
+        temp_min REAL,
+        apparent_max REAL,
+        apparent_min REAL,
+        precipitation_sum REAL,
         sunshine_duration REAL,
+        wind_speed_max REAL,
+        forecast_generated_on TEXT,
+        UNIQUE(location_id, date_id),
         FOREIGN KEY (location_id) REFERENCES dim_location(id),
         FOREIGN KEY (date_id) REFERENCES dim_date(id)
     );
@@ -59,14 +55,7 @@ def create_table():
 
     conn.commit()
     conn.close()
-
-    print("Tables created.")
-
-
-if __name__ == "__main__":
-    create_table()
-
-
+    print(" Tables created successfully.")
 
 
 def insert_dim_location():
@@ -88,10 +77,7 @@ def insert_dim_location():
 
     conn.commit()
     conn.close()
-    print("dim_location table created.")
-
-
-
+    print(" dim_location inserted/verified.")
 
 
 def insert_dim_date(df):
@@ -104,57 +90,55 @@ def insert_dim_date(df):
         cursor.execute("""
         INSERT OR IGNORE INTO dim_date (date, day, month, year, week, weekday_name)
         VALUES (?, ?, ?, ?, ?, ?)
-        """, (str(row["date"]), row["day"], row["month"], row["year"], row["week"], row["weekday_name"]))
+        """, (
+            str(row["date"]),
+            row["day"], row["month"], row["year"], row["week"], row["weekday_name"]
+        ))
 
     conn.commit()
     conn.close()
-    print(f"new {len(date_df)} date inserted.")
-
-
+    print(f" {len(date_df)} dates inserted or verified.")
 
 
 def insert_fact_weather(df):
     conn = get_connection()
     cursor = conn.cursor()
 
-
     for _, row in df.iterrows():
-        cursor.execute("SELECT id FROM dim_location WHERE city = ?", (row['city'],))
-        location_row = cursor.fetchone()
-        if not location_row:
-            print(f"not found location_id for {row['city']}, continue... ")
+        cursor.execute("SELECT id FROM dim_location WHERE city = ?", (row["city"],))
+        loc = cursor.fetchone()
+        if not loc:
+            print(f"⚠️ Location not found for {row['city']}")
             continue
-        location_id = location_row[0]
+        location_id = loc[0]
 
-
+    
         cursor.execute("SELECT id FROM dim_date WHERE date = ?", (str(row["date"]),))
         date_row = cursor.fetchone()
         if not date_row:
-            print(f"not found date_id for {row['date']}, continue...")
+            print(f"⚠️ Date not found for {row['date']}")
             continue
         date_id = date_row[0]
 
-        cursor.execute("SELECT id FROM fact_weather WHERE location_id = ? AND date_id = ?", (location_id, date_id))
-        exist = cursor.fetchone()
-        if exist:
-            print(f"{row['city']} and {row['date']} are avaliable, continue...")
-            continue
-
-
+    
         cursor.execute("""
-        INSERT INTO fact_weather (
-            location_id, date_id, avg_temp, apparent_temp,
-            avg_humidity, total_precipitation, total_snowfall,
-            avg_cloud_cover, avg_wind_speed, sunshine_duration
+        INSERT OR REPLACE INTO fact_weather (
+            location_id, date_id,
+            temp_max, temp_min, apparent_max, apparent_min,
+            precipitation_sum, sunshine_duration, wind_speed_max, forecast_generated_on
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             location_id, date_id,
-            row["avg_temp"], row["apparent_temp"],
-            row["avg_humidity"], row["total_precipitation"],
-            row["total_snowfall"], row["cloud_cover"],
-            row["avg_wind_speed"], row["sunshine_duration"]
+            row["temp_max"], row["temp_min"], row["apparent_max"], row["apparent_min"],
+            row["precipitation_sum"], row["sunshine_duration"], row["wind_speed_max"],
+            row["forecast_generated_on"]
         ))
 
     conn.commit()
     conn.close()
-    print(f"new {len(df)} line inserted.")
+    print(f"{len(df)} weather forecast rows inserted/replaced.")
+
+
+if __name__ == "__main__":
+    create_tables()
+    insert_dim_location()

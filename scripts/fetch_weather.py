@@ -1,7 +1,7 @@
 import json
 import requests
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def fetch_weather():
 
@@ -17,25 +17,27 @@ def fetch_weather():
         {"city": "Antalya", "region": "Akdeniz", "lat": 36.8969, "lon": 30.7133},
     ]
 
-    hourly_params = [
-        "temperature_2m",
-        "apparent_temperature",
-        "relative_humidity_2m",
-        "precipitation",
-        "snowfall",
-        "cloud_cover",
-        "wind_speed_10m",
-        "sunshine_duration"
+    daily_params = [
+        "temperature_2m_max",
+        "temperature_2m_min",
+        "apparent_temperature_max",
+        "apparent_temperature_min",
+        "precipitation_sum",
+        "sunshine_duration",
+        "wind_speed_10m_max",
     ]
 
-    now = datetime.now()
-    timestamp = now.strftime("%Y-%m-%d-%H")
+    start_date = datetime.now().date()
+    end_date = start_date + timedelta(days=6)
+    timestamp = datetime.now().strftime("%Y-%m-%d")
 
     for city in cities:
         params = {
             "latitude": city["lat"],
             "longitude": city["lon"],
-            "hourly": ",".join(hourly_params),
+            "daily": ",".join(daily_params),
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
             "timezone": "Europe/Istanbul"
         }
 
@@ -48,21 +50,21 @@ def fetch_weather():
                 "region": city["region"],
                 "latitude": city["lat"],
                 "longitude": city["lon"],
-                "timestamp": timestamp
+                "forecast_generated_on": timestamp
             }
 
-            filename = f"{timestamp}_{city['city'].lower()}.json"
+            filename = f"{timestamp}_{city['city'].lower()}_daily.json"
             filepath = raw_dir / filename
 
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
 
-            print(f"Success: {city['city']} → {filepath}")
+            print(f"Success: {city['city']} ({start_date} → {end_date})")
 
         else:
-            print(f"Error fetching data for {city['city']}: {response.status_code}")
+            print(f"Error fetching data for {city['city']}: {response.status_code} | {response.text}")
 
-    print("\n All cities fetched successfully.\n")
+    print("\n All cities (7-day forecast) fetched successfully.\n")
     return str(raw_dir)
 
 
